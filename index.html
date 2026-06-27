@@ -3,7 +3,37 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>MediaEdit — Audio & Video Editor</title>
+<title>MediaEdit — Free Online Audio & Video Editor</title>
+<meta name="description" content="Free browser-based audio and video editor. Trim, cut, crop, rotate, and export MP3, WAV, MP4, WebM and more — no upload, no account, everything runs locally in your browser.">
+<meta name="keywords" content="audio editor, video editor, online, free, trim audio, cut video, crop video, mp3 editor, mp4 editor, browser, no upload, wasm, ffmpeg">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://YOUR-DOMAIN-HERE/">
+
+<!-- Open Graph (Facebook, LinkedIn, WhatsApp previews) -->
+<meta property="og:type"        content="website">
+<meta property="og:title"       content="MediaEdit — Free Online Audio & Video Editor">
+<meta property="og:description" content="Trim, cut, crop, rotate, and export audio and video entirely in your browser. No upload. No account. Powered by FFmpeg WebAssembly.">
+<meta property="og:url"         content="https://YOUR-DOMAIN-HERE/">
+<meta property="og:image"       content="https://YOUR-DOMAIN-HERE/og-image.png">
+
+<!-- Twitter / X Card -->
+<meta name="twitter:card"        content="summary_large_image">
+<meta name="twitter:title"       content="MediaEdit — Free Online Audio & Video Editor">
+<meta name="twitter:description" content="Trim, cut, crop, rotate, and export audio and video entirely in your browser. No upload. No account.">
+<meta name="twitter:image"       content="https://YOUR-DOMAIN-HERE/og-image.png">
+
+<!-- Google Analytics 4 — replace G-XXXXXXXXXX with your real Measurement ID -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){ dataLayer.push(arguments); }
+  gtag('js', new Date());
+  gtag('config', 'G-XXXXXXXXXX');
+  // Helper: fire a GA4 custom event (safe if GA hasn't loaded yet)
+  window.gaEvent = function(name, params) {
+    if (typeof gtag === 'function') gtag('event', name, params || {});
+  };
+</script>
 <style>
 :root {
   --bg: #0d0d0d;
@@ -778,6 +808,7 @@ async function loadFile(file) {
     /\.(mp4|mov|avi|mkv|webm|flv|wmv|m4v)$/i.test(file.name);
 
   S.type = isVideo ? 'video' : 'audio';
+  gaEvent('file_loaded', { file_type: S.type, file_ext: file.name.split('.').pop().toLowerCase() });
   fnameDisplay.textContent = file.name;
   typeBadge.textContent = S.type.toUpperCase();
 
@@ -1118,12 +1149,14 @@ $('trim-keep').onclick = () => {
   if (Math.abs(S.trimStart) < 0.05 && Math.abs(S.trimEnd - S.duration) < 0.05) {
     toast('Adjust the handles first — nothing to trim.', 'err'); return;
   }
+  gaEvent('keep_selection', { media_type: S.type });
   applyPreview(false);
 };
 $('trim-cut').onclick = () => {
   if (Math.abs(S.trimStart) < 0.05 && Math.abs(S.trimEnd - S.duration) < 0.05) {
     toast('Select a region to cut first.', 'err'); return;
   }
+  gaEvent('cut_selection', { media_type: S.type });
   applyPreview(true);
 };
 $('sel-all').onclick = () => {
@@ -1209,6 +1242,7 @@ document.querySelectorAll('[data-rot]').forEach(b => {
     if (S.rotate !== 0) b.classList.add('btn-accent');
     applyRotatePreview();
     const labels = ['none', '90° CW', '90° CCW', '180°'];
+    gaEvent('rotate_set', { degrees: labels[S.rotate] });
     toast(S.rotate === 0 ? 'Rotation reset.' : `Preview: rotate ${labels[S.rotate]}.`);
   };
 });
@@ -1234,12 +1268,14 @@ $('mute-video-btn').onclick = () => {
   videoEl.muted = S.muteVideo;
   $('mute-video-btn').classList.toggle('btn-accent', S.muteVideo);
   $('mute-video-btn').textContent = S.muteVideo ? 'Unmute' : 'Mute';
+  if (S.muteVideo) gaEvent('mute_video');
   toast(S.muteVideo ? 'Audio muted — will be removed on export.' : 'Audio restored.');
 };
 
 $('extract-audio-btn').onclick = () => {
   S.audioOnly = true; S.muteVideo = false;
   fmtSelect.value = 'mp3';
+  gaEvent('extract_audio');
   toast('Will extract audio as MP3. Click Export.');
 };
 
@@ -1334,6 +1370,7 @@ $('crop-apply-btn').onclick = () => {
   $('crop-toggle-btn').classList.remove('hidden');
   $('crop-apply-btn').classList.add('hidden');
   $('crop-toggle-btn').classList.add('btn-accent');
+  gaEvent('crop_applied', { width: S.crop.w, height: S.crop.h });
   toast(`Crop set: ${S.crop.w}×${S.crop.h} px. Click Export to apply.`, 'ok');
 };
 
@@ -1393,11 +1430,12 @@ exportBtn.onclick = doExport;
 async function doExport() {
   if (!S.file) return;
   exportBtn.disabled = true;
+  const fmt = fmtSelect.value;
+  gaEvent('export_started', { format: fmt, media_type: S.type,
+    has_crop: !!S.crop, rotate: S.rotate, muted: S.muteVideo, audio_only: S.audioOnly });
   try {
     await ensureFFmpeg();
     showModal('Processing…', 5, 'Preparing file…');
-
-    const fmt   = fmtSelect.value;
     const inExt = currentFileExt();
     const inName  = `in.${inExt}`;
     const outName = `out.${fmt}`;
